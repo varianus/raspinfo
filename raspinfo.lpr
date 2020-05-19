@@ -11,6 +11,9 @@ uses {$IFDEF UNIX}
   ctypes,
   ncurses;
 
+Const
+  AppVersion = '0.1';
+
 type
   TRenderMode = (rmKeyValue, rmText);
 
@@ -22,6 +25,7 @@ type
     Data: TStringList;
     ViewKind: TViewKind;
     MaxCols, MaxRows: integer;
+    procedure DumpInfo;
     function FormatFreq(const v: string): string;
     function GetValue(const Command: string; const param: array of string): string;
     procedure LoadClocks;
@@ -35,6 +39,7 @@ type
     function StripName(const v: string): string;
   protected
     procedure DoRun; override;
+    procedure HandleException(Sender: TObject); override;
   public
     constructor Create(TheOwner: TComponent); override;
     destructor Destroy; override;
@@ -336,23 +341,60 @@ end;
 
 function setlocale(category: cint; locale: PChar): PChar; cdecl; external 'c' Name 'setlocale';
 
+procedure TRaspInfo.DumpInfo;
+var
+  f: Text;
+  tmpS: string;
+begin
+  Data     := TStringList.Create;
+  TmpS := GetOptionValue('d','dump');
+  if trim(tmps) ='' then
+    f := StdOut
+  else
+    begin
+      AssignFile(f, tmps);
+      Rewrite(f);
+    end;
+  LoadTemp;
+  WriteLn(f,'[Temperature]');
+  WriteLn(f,Data.Text);
+  LoadClocks;
+  WriteLn(f,'[Clocks]');
+  WriteLn(f,Data.Text);
+  LoadVolts;
+  WriteLn(f,'[Voltage]');
+  WriteLn(f,Data.Text);
+  LoadConfig;
+  WriteLn(f,'[Configuration]');
+  WriteLn(f,Data.Text);
+  LoadOther;
+  WriteLn(f,'[Other]');
+  WriteLn(f,Data.Text);
+  if tmpS <> '' then
+    CloseFile(f);
+  Data.free;
+end;
+
 procedure TRaspInfo.DoRun;
 var
   ErrorMsg: string;
 var
-  ch: chtype = 0;
+  ch: longint = 0;
   pad: PWINDOW;
+  tmpS:string;
   my_bg: smallint = COLOR_BLACK;
   VirtualPos: integer;
   Ok: integer;
   event: MEVENT;
   tmp, i: integer;
+  Refresh: longint;
 begin
+  Refresh := 10;
   // quick check parameters
-  ErrorMsg := CheckOptions('h', 'help');
+  ErrorMsg := CheckOptions('hu:d::', 'help update: dump::', true);
   if ErrorMsg <> '' then
   begin
-    ShowException(Exception.Create(ErrorMsg));
+    Writeln(ErrorMsg);
     Terminate;
     Exit;
   end;
@@ -364,17 +406,34 @@ begin
     Terminate;
     Exit;
   end;
+  if HasOption('d', 'dump') then
+  begin
+    DumpInfo;
+    Terminate;
+    exit;
+  end;
+
+  if HasOption('u', 'update') then
+  begin
+    TmpS := GetOptionValue('u','update');
+    if not TryStrToInt(tmpS, Refresh) then
+    begin
+      WriteLn('Invalid refresh parameter');
+      Terminate;
+      exit;
+    end
+  end;
 
   { add your program here }
   Data     := TStringList.Create;
   setlocale(1, 'UTF-8');
   initscr();
   noecho();
-  halfdelay(9);
   keypad(stdscr, True);
   curs_set(0);
   Clear();
-  mousemask(ALL_MOUSE_EVENTS, nil);
+  halfdelay(refresh);
+  mousemask($ffffffff, nil);
   if has_colors() then
   begin
     start_color();
@@ -471,14 +530,14 @@ begin
         begin
           LoadClocks;
           RenderText(rmKeyValue, VirtualPos, 2);
-          halfdelay(9);
+          halfdelay(Refresh);
         end;
 
         vkVoltage:
         begin
           LoadVolts;
           RenderText(rmKeyValue, VirtualPos, 2);
-          halfdelay(9);
+          halfdelay(Refresh);
         end;
 
         vkCodecs, vkConfig, vkOthers:
@@ -490,7 +549,7 @@ begin
         begin
           LoadTemp;
           RenderText(rmKeyValue, VirtualPos, 2);
-          halfdelay(9);
+          halfdelay(Refresh);
         end;
       end;
       attron(COLOR_PAIR(1));
@@ -508,6 +567,27 @@ begin
   Terminate;
 end;
 
+procedure TRaspInfo.HandleException(Sender: TObject);
+var
+  I: Integer;
+  Frames: PPointer;
+  Report: string;
+  e: exception;
+begin
+  Report := 'Program exception! ' + LineEnding +
+    'Stacktrace:' + LineEnding + LineEnding;
+  e:= Exception(ExceptObject);
+  if E <> nil then begin
+    Report := Report + 'Exception class: ' + E.ClassName + LineEnding +
+    'Message: ' + E.Message + LineEnding;
+  end;
+  Report := Report + BackTraceStrFunc(ExceptAddr);
+  Frames := ExceptFrames;
+  for I := 0 to ExceptFrameCount - 1 do
+    Report := Report + LineEnding + BackTraceStrFunc(Frames[I]);
+  writeln(stderr, report);
+end;
+
 constructor TRaspInfo.Create(TheOwner: TComponent);
 begin
   inherited Create(TheOwner);
@@ -522,7 +602,15 @@ end;
 procedure TRaspInfo.WriteHelp;
 begin
   { add your help code here }
-  writeln('Usage: ', ExeName, ' -h');
+  writeln('raspinfo ' + AppVersion);
+  writeln('This is an interactive application to show some info about your Raspberry Pi');
+  writeln('Usage: raspinfo [option]');
+  writeln;
+  writeln('-u <delay>, --update=<delay>' + sLineBreak +
+          '    ' + ' Delay between updates, in tenths of seconds (default 10, i.e. one second');
+  writeln('-d [filename], --dump[=filename]' + sLineBreak +
+          '    ' + 'Dump all information to stodout or to a specified file');
+
 end;
 
 var

@@ -57,7 +57,7 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="raspinfo"/>
+      <Filename Value="bin/raspinfo"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
@@ -79,10 +79,7 @@
     </CodeGeneration>
     <Linking>
       <Debugging>
-        <DebugInfoType Value="dsDwarf2Set"/>
-        <UseHeaptrc Value="True"/>
-        <TrashVariables Value="True"/>
-        <UseExternalDbgSyms Value="True"/>
+        <DebugInfoType Value="dsDwarf2"/>
       </Debugging>
     </Linking>
   </CompilerOptions>
