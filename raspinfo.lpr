@@ -17,7 +17,7 @@ Const
 type
   TRenderMode = (rmKeyValue, rmText);
 
-  TViewKind = (vkClocks, vkConfig, vkVoltage, vkCodecs, vkTemperature, vkOthers, vkAbout);
+  TViewKind = (vkClocks, vkConfig, vkVoltage, vkCodecs, vkTemperature, vkBootLoader, vkOthers, vkAbout);
   { TRaspInfo }
 
   TRaspInfo = class(TCustomApplication)
@@ -28,6 +28,7 @@ type
     procedure DumpInfo;
     function FormatFreq(const v: string): string;
     function GetValue(const Command: string; const param: array of string): string;
+    procedure LoadBootLoader;
     procedure LoadClocks;
     procedure LoadCodecs;
     procedure LoadConfig;
@@ -55,13 +56,14 @@ type
   end;
 
 const
-  FunctionKeys: array [0..6] of functionKey = (
+  FunctionKeys: array [0..7] of functionKey = (
     (KeyLabel: 'F2'; Key: KEY_F2; Desc: 'Temperature'),
     (KeyLabel: 'F3'; Key: KEY_F3; Desc: 'Clocks'),
     (KeyLabel: 'F4'; Key: KEY_F4; Desc: 'Settings'),
     (KeyLabel: 'F5'; Key: KEY_F5; Desc: 'Voltages'),
     (KeyLabel: 'F6'; Key: KEY_F6; Desc: 'Codecs'),
-    (KeyLabel: 'F7'; Key: KEY_F7; Desc: 'Others'),
+    (KeyLabel: 'F7'; Key: KEY_F6; Desc: 'BootLoader'),
+    (KeyLabel: 'F8'; Key: KEY_F7; Desc: 'Others'),
     (KeyLabel: 'F10'; Key: KEY_F10; Desc: 'Exit'));
 
 const
@@ -158,10 +160,10 @@ begin
   begin
     attron(COLOR_PAIR(4));
     mvaddstr(MaxRows - 1, x, PChar(FunctionKeys[i].KeyLabel));
-    x += Length(FunctionKeys[i].KeyLabel);
+    x := x + Length(FunctionKeys[i].KeyLabel);
     attron(COLOR_PAIR(5));
     mvaddstr(MaxRows - 1, x, PChar(FunctionKeys[i].Desc));
-    x += Length(FunctionKeys[i].Desc);
+    x := x+ Length(FunctionKeys[i].Desc);
   end;
 end;
 
@@ -219,6 +221,11 @@ begin
       end;
     end;
   end;
+end;
+
+procedure TRaspInfo.LoadBootLoader;
+begin
+  Data.Text := GetValue(VC,['bootloader_config']);
 end;
 
 procedure TRaspInfo.LoadConfig;
@@ -367,6 +374,9 @@ begin
   LoadConfig;
   WriteLn(f,'[Configuration]');
   WriteLn(f,Data.Text);
+  LoadBootLoader;
+  WriteLn(f,'[Bootloader]');
+  WriteLn(f,Data.Text);
   LoadOther;
   WriteLn(f,'[Other]');
   WriteLn(f,Data.Text);
@@ -388,6 +398,7 @@ var
   event: MEVENT;
   tmp, i: integer;
   Refresh: longint;
+  term: String;
 begin
   Refresh := 10;
   // quick check parameters
@@ -433,6 +444,8 @@ begin
   curs_set(0);
   Clear();
   halfdelay(refresh);
+
+
   mousemask($ffffffff, nil);
   if has_colors() then
   begin
@@ -447,6 +460,15 @@ begin
     init_pair(4, COLOR_WHITE, my_bg);
     init_pair(5, COLOR_BLACK, COLOR_CYAN);
   end;
+
+  term := GetEnvironmentVariable('TERM');
+  // fix for xterm terminal emulation
+  if term.StartsWith('xterm') or term.Equals('vt220') then
+    begin
+      ch:=define_key(#27'[12~', KEY_F2);
+      ch:=define_key(#27'[13~', KEY_F3);
+      ch:=define_key(#27'[14~', KEY_F4);
+    end;
 
   ch := Key_F2;
   try
@@ -509,6 +531,12 @@ begin
         end;
         KEY_F7:
         begin
+          ViewKind := vkBootloader;
+          LoadBootLoader;
+          VirtualPos := 0;
+        end;
+        KEY_F8:
+        begin
           ViewKind := vkOthers;
           LoadOther;
           VirtualPos := 0;
@@ -540,11 +568,12 @@ begin
           halfdelay(Refresh);
         end;
 
-        vkCodecs, vkConfig, vkOthers:
+        vkCodecs, vkConfig, vkOthers, vkbootloader:
         begin
           RenderText(rmKeyValue, VirtualPos, 2);
           cbreak;
         end;
+
         vkTemperature:
         begin
           LoadTemp;
