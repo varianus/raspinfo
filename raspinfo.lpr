@@ -312,6 +312,30 @@ begin
 end;
 
 procedure TRaspInfo.LoadOther;
+type
+  TFlag = bitpacked record
+    case integer of
+     0:(
+       Revision     : 0..15;
+       PType        : 0..255;
+       Processor    : 0..15;
+       Manifacturer : 0..15;
+       MemSize      : 0..7;
+       StyleRev     : 0..1;
+       u2           : 0..1;
+       Warranty     : 0..1;
+       u1	     : 0..7;
+       OtpRead      : 0..1;
+       OtpProgram   : 0..1;
+       );
+     1:(full: dword);
+
+  end;
+
+var
+   rev:string;
+
+   intmask : TFlag;
 begin
   Data.Clear;
   Data.AddPair('Host Name', StripName(GetValue('uname' ,['-n'])));
@@ -322,6 +346,55 @@ begin
   Data.AddPair('Camera enabled', BoolToStr(ValueAsBool(StripName(GetValue(VC,['get_camera'])))));
   Data.AddPair('HDMI 1 powered', BoolToStr(ValueAsBool(StripName(GetValue(VC,['display_power', '-1','2'])))));
   Data.AddPair('HDMI 2 powered', BoolToStr(ValueAsBool(StripName(GetValue(VC,['display_power', '-1','7'])))));
+  rev := StripName(GetValue('bash' ,['-c','vcgencmd otp_dump | grep 30:']));
+  rev := StringReplace(rev, '30:', '$00', []);
+  intMask.full := leton( StrToIntdef(rev, 0));
+  case intmask.PType of
+     $0: rev := 'A';
+     $1: rev := 'B';
+     $2: rev := 'A+';
+     $3: rev := 'B+';
+     $4: rev := '2B';
+     $5: rev := 'Alpha (early prototype)';
+     $6: rev := 'CM1';
+     $8: rev := '3B';
+     $9: rev := 'Zero';
+     $a: rev := 'CM3';
+     $c: rev := 'Zero W';
+     $d: rev := '3B+';
+     $e: rev := '3A+';
+     $f: rev := 'Internal use only';
+     $10: rev := 'CM3+';
+     $11: rev := '4B';
+     $13: rev := '400';
+     $14: rev := 'CM4';
+         else rev := 'Unknown';
+  end;
+  Data.AddPair('Type',rev);
+  Data.AddPair('Revision', '1.'+inttostr(intmask.Revision));
+  case intmask.memsize of
+     0 : rev:= '256MB';
+     1 : rev:= '512MB';
+     2 : rev:= '1GB';
+     3 : rev:= '2GB';
+     4 : rev:= '4GB';
+     5 : rev:= '8GB';
+     else rev := 'Unknown';
+  end;
+  Data.AddPair('Memory',rev);
+  case intmask.Processor of
+     0 : rev:= 'BCM2835';
+     1 : rev:= 'BCM2836';
+     2 : rev:= 'BCM2837';
+     3 : rev:= 'BCM2711';
+     else rev := 'Unknown';
+  end;
+  Data.AddPair('Processor', rev);
+
+  rev := StripName(GetValue('bash' ,['-c','vcgencmd otp_dump | grep 28:']));
+  rev := StringReplace(rev, '28:', '', []);
+  Data.AddPair('Serial',rev);
+
 end;
 
 procedure TRaspInfo.LoadCodecs;
