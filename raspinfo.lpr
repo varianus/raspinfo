@@ -136,7 +136,7 @@ var
   fx: int64;
 begin
   fx     := StrToInt64Def(stripName(v), 0);
-  Result := Format('%8.2n Ghz', [fx / 1000000]);
+  Result := Format('%8.2n Mhz', [fx / 1000000]);
 end;
 
 function TRaspInfo.StripName(const v: string): string;
@@ -711,7 +711,7 @@ begin
   writeln('-u <delay>, --update=<delay>' + sLineBreak +
           '    ' + ' Delay between updates, in tenths of seconds (default 10, i.e. one second');
   writeln('-d [filename], --dump[=filename]' + sLineBreak +
-          '    ' + 'Dump all information to stodout or to a specified file');
+          '    ' + 'Dump all information to stdout or to a specified file');
 
 end;
 
